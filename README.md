@@ -10,9 +10,9 @@ https://www.youtube.com/watch?v=bIksc4qJLK4
 - L'oscillation des leds internes est relative à la distance mesurée :
   Plus la distance mesurée est petite, plus l'oscillation des leds est rapide.
 - Signification des signaux de la led verte :
-  . Off : pas de mesure en cours
-  . Clignotement simple : mesure en cours
-  . Clignotement double : mode comparaison activé
+  - Off : pas de mesure en cours
+  - Clignotement simple : mesure en cours
+  - Clignotement double : mode comparaison activé
 - Prise en charge de caractères spéciaux sur l'écran LCD
 
 ![IMG_20230402_160246](https://user-images.githubusercontent.com/109244995/229360681-ba1497f3-7dc2-4de2-b05a-de3c3745f0b6.jpg)
