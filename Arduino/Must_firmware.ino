@@ -1,3 +1,11 @@
+/// ---------------------------------------------------------------------
+///
+/// Projet          : MUST - Mon Ultra Sonic Télémètre
+/// Auteur          : Juanito del Pepito
+/// Date            : 02/04/2023
+/// Description     : Télémètre à Ultra-Sons
+///
+/// ---------------------------------------------------------------------
 // Librairies
 #include "MUST_App.h"
 
@@ -11,9 +19,12 @@
 #define ECHO_PIN              9
 
 #define DBL_CLICK_TIME        400                           // Temps (ms) considéré pour un double-clic afin d'éviter la prise en compte
+#define LONG_CLICK_TIME       750                           // Temps (ms) considéré pour un clic long pour passage en mode Compare
 
-// Déclarations des variables globales
-volatile bool mesureActionON = false;                       // Flag de lecture de mesure en cours. Volatile car potentiellement updaté depuis une interruption
+// Déclaration des variables globales
+int actionStatus = 1;                                       // Flag de Status d'action en cours : [1] Mesure OFF / [2] Mesure ON / [3] Compare.
+bool actionDone = false;                                    // Flag de status HIGH / LOW du Push button
+bool buttonPressed = false;                                 // Flag de status HIGH / LOW du Push button
 long lastPushBtnTime = 0;                                   // FlagTime du dernier puch button (pour éviter les double-clic)
 long lastLoopTime = 0;                                      // DEBUG : Flag de lecture de l'interval mini
 long minLoopTime = 0;                                       // DEBUG : Interval mini de la fonction loop
@@ -21,7 +32,7 @@ long maxLoopTime = 0;                                       // DEBUG : Interval 
 double avgLoopTime = 0;                                     // DEBUG : Moyenne du temps d'un Interval
 long nbTotalLoops = 0;                                      // DEBUG : Nombre total d'intervalles
 
-// Initialisation des objets
+// Déclaration des objets
 MUST_App app = MUST_App(PIN_LED_CARD_LEFT,                  // Application MUST
                         PIN_LED_CARD_RIGHT,
                         PIN_LED_RED,
@@ -60,13 +71,13 @@ void loop() {
   SetMesureActionState();
   
   // Oscillation des leds de la Protoshield
-  app.CardLedOscillate(mesureActionON);
+  app.CardLedOscillate(actionStatus);
 
   // Green Led
-  app.UpdateGreenLedState(mesureActionON);
+  app.UpdateGreenLedState(actionStatus);
 
   // Mise à jour de l'affichage LCD
-  app.UpdateScreen(mesureActionON);
+  app.UpdateScreen(actionStatus);
 }
 
 /// --------------------------------
@@ -74,12 +85,58 @@ void loop() {
 ///
 void SetMesureActionState()
 {
-  // Sur pression du bouton (hors dbl-click), on inverse l'état d'action en cours
-  if (digitalRead(PIN_PUSH_ACTION) == LOW
-      && millis() - lastPushBtnTime > DBL_CLICK_TIME)
+  // Bouton Relaché
+  if (digitalRead(PIN_PUSH_ACTION) == HIGH)
   {
-    lastPushBtnTime = millis();
-    mesureActionON = !mesureActionON;
+    // En mode MesureON ou Compare, sur clic court, on passe en mode MesureOFF
+    if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
+        && buttonPressed == true
+        && actionDone == false)
+    {
+      actionStatus = ACTION_STATUS_MESURE_OFF;
+    }
+
+    // Update des Flags
+    buttonPressed = false;
+    actionDone = false;
+  }
+  // Bouton Pressé
+  else
+  {
+    // Verif de dbl-click
+    bool dblClick = false;
+
+    // Actualisation du chrono si nécessaire
+    if (buttonPressed == false)
+    {
+      dblClick = millis() < lastPushBtnTime + DBL_CLICK_TIME;
+      if (!dblClick)
+        lastPushBtnTime = millis();
+    }
+  
+    // En mode MesureOFF => On passe en MesureON
+    if (actionStatus == ACTION_STATUS_MESURE_OFF
+        && buttonPressed == false
+        && !dblClick)
+    {
+      actionStatus = ACTION_STATUS_MESURE_ON;
+      app.ResetCompare();
+      actionDone = true;
+    }
+
+    // En mode MesureON ou Compare, sur clic long, on passe en mode Compare
+    else if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
+        && buttonPressed == true
+        && actionDone == false
+        && millis() > lastPushBtnTime + LONG_CLICK_TIME)
+    {
+      actionStatus = ACTION_STATUS_MESURE_COMPARE;
+      app.UpdateCompare();
+      actionDone = true;
+    }
+
+    // Actualisation du status du bouton
+    buttonPressed = true;  
   }
 }
 

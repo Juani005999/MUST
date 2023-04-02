@@ -11,26 +11,22 @@ MUST_App::MUST_App (int pinLedCardLeft,
                     int pinEcho,
                     int pinTrigger)
 {
-  // Initialisation des objets internes avec les paramètres de construction
-  _hcsr04.Init(pinEcho, pinTrigger);
-  
   // Update des membres internes
   _pinLedCardLeft = pinLedCardLeft;
   _pinLedCardRight = pinLedCardRight;
   _pinLedRed = pinLedRed;
   _pinLedGreen = pinLedGreen;
   _pinPushAction = pinPushAction;
+  _pinEcho = pinEcho;
+  _pinTrigger = pinTrigger;
 
   // Définition des PIN
-  pinMode(_pinLedCardLeft, OUTPUT);
-  pinMode(_pinLedCardRight, OUTPUT);
-  pinMode(_pinLedRed, OUTPUT);
-  pinMode(_pinLedGreen, OUTPUT);
   pinMode(_pinPushAction, INPUT_PULLUP);
 
   // Initialisation des flags de mesure
-  _lastSavedActionON = false;
+  _actionStatus = 1;
   _lastMesure = -1;
+  _compareMesure = -1;
 }
 
 /// -------------------------------------
@@ -38,16 +34,19 @@ MUST_App::MUST_App (int pinLedCardLeft,
 ///
 void MUST_App::Init()
 {
-  // LED de la Protoshield à 20 au démarrage
-  analogWrite(_pinLedCardLeft, 20);
-  analogWrite(_pinLedCardRight, 20);
+  // Initialisation des objets internes avec les paramètres de construction
+  _hcsr04.Init(_pinEcho, _pinTrigger);
+  _lcd.Init();
+  _cardLeftLed.Init(_pinLedCardLeft, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
+  _cardRightLed.Init(_pinLedCardRight, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
+  _redLed.Init(_pinLedRed, 0, LED_RED_MAX_VALUE);
+  _greenLed.Init(_pinLedGreen, LED_GREEN_MIN_VALUE, LED_GREEN_MAX_VALUE);
 
-  // LED RED et GREEN
-  analogWrite(_pinLedRed, _ledRedLevelMax);
-  analogWrite(_pinLedGreen, _ledGreenLevelMax);
-
-  // Initialisation de l'écran LCD
-  InitDisplay();
+  // Allumage des Leds au démarrage de l'App
+  _cardLeftLed.On(true);
+  _cardRightLed.On(true);
+  _redLed.On(true);
+  _greenLed.On(true);
   
   // Splash Screen App
   DisplayStartApp();
@@ -56,20 +55,10 @@ void MUST_App::Init()
   Serial.println("Initialisation MUST App OK");
 
   // Initialisation Chrono
-  _chronoLedCardLoop = millis();
-  _chronoGreenLedLoop = millis();
+  //_chronoLedCardLoop = millis();
+  //_chronoGreenLedLoop = millis();
   _chronoLCDRefresh = millis();
   _chronoLastMesure = millis();
-}
-
-/// -----------------------------------
-/// Initialisation de l'écran LCD
-///
-void MUST_App::InitDisplay()
-{
-  // Initialisation écran
-  _lcd.init();
-  _lcd.backlight();
 }
 
 /// -------------------------------------
@@ -110,7 +99,8 @@ void MUST_App::DisplayStartApp()
   
   // Affichage chargement en cours
   _lcd.setCursor(0, 1);
-  _lcd.print(_texteChargement);
+  _lcd.smiley();
+  _lcd.print(" " + _texteChargement);
   delay(_delayChargement);
   _lcd.print(".");
   delay(_delayChargement);
@@ -126,29 +116,55 @@ void MUST_App::DisplayStartApp()
 /// --------------------------------------------------
 /// Prise en charge de l'oscillation des leds de la protoshield
 ///
-void MUST_App::CardLedOscillate(bool shortOscillation)
+void MUST_App::CardLedOscillate(int actionStatus)
 {
+  // // Si on est en mode Mesure ON ou Compare, et qu'on est dans les limites pour la dernière mesure, on applique un coef au proprata de la distance
+  // //  afin de faire varier les oscillations avec la distance mesurée
+  // if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
+  //     && _lastMesure > HCSR04_MESURE_BORNE_MIN && _lastMesure < HCSR04_MESURE_BORNE_MAX)
+  // {
+  //   _cardLeftLed.Oscillate(((double)_lastMesure / HCSR04_MESURE_BORNE_MAX));
+  //   _cardRightLed.Oscillate(((double)_lastMesure / HCSR04_MESURE_BORNE_MAX), true);
+  // }
+  // else
+  // {
+  //   _cardLeftLed.Oscillate();
+  //   _cardRightLed.Oscillate(-1, true);
+  // }
+  
+  // ---------------------
+  // EDIT : Comme on souhaite une synchronisation des oscillations entre LED droite et gauche,
+  //  on gère l'oscillation ici dans l'objet applicatif et non via l'objet LED indépendamment
+  // ---------------------
+
+  // Intervalle de référence pour l'oscillation
+  double intervalle = DEFAULT_OSCILLATE_CHRONO_INTERVAL * DEFAULT_OSCILLATE_COEF_STD;
+
+  // Si on est en mode Mesure ON ou Compare, et qu'on est dans les limites pour la dernière mesure, on applique un coef au proprata de la distance
+  //  afin de faire varier les oscillations avec la distance mesurée
+  if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
+      && _lastMesure > HCSR04_MESURE_BORNE_MIN && _lastMesure < HCSR04_MESURE_BORNE_MAX)
+    intervalle = DEFAULT_OSCILLATE_CHRONO_INTERVAL + ((DEFAULT_OSCILLATE_CHRONO_INTERVAL * ((double)_lastMesure / HCSR04_MESURE_BORNE_MAX)) * 50);
+
   // Traitement si plus dans l'intervalle défini
-  if (millis() > _chronoLedCardLoop + _ledCardLevelIntervalMillis)
+  if (millis() > _chronoLedCardLoop + intervalle)
   {
     // Validation des bornes min et max
-    if (_ledCardLevel < _ledCardLevelMin)
-      _ledCardLevel = _ledCardLevelMin;
-    if (_ledCardLevel > _ledCardLevelMax)
-      _ledCardLevel = _ledCardLevelMax;
+    if (_ledCardLevel < LED_CARD_MIN_VALUE)
+      _ledCardLevel = LED_CARD_MIN_VALUE;
+    if (_ledCardLevel > LED_CARD_MAX_VALUE)
+      _ledCardLevel = LED_CARD_MAX_VALUE;
 
     // On positionne les LED à leur valeur respectives
-    analogWrite(_pinLedCardRight, _ledCardLevel);
-    analogWrite(_pinLedCardLeft, _ledCardLevelMax - _ledCardLevel + _ledCardLevelMin);
+    _cardLeftLed.SetValue (_ledCardLevel);
+    _cardRightLed.SetValue (LED_CARD_MAX_VALUE - _ledCardLevel + LED_CARD_MIN_VALUE);
 
     // On update les niveaux pour le prochain affichage
-    if (_ledCardSensUp)
-      _ledCardLevel += shortOscillation ? _ledCardLevelIntervalShort : _ledCardLevelIntervalLong;
-    else
-      _ledCardLevel -= shortOscillation ? _ledCardLevelIntervalShort : _ledCardLevelIntervalLong;
+    _ledCardLevel = _ledCardSensUp  ? _ledCardLevel + DEFAULT_OSCILLATE_LEVEL_INTERVAL
+                                    : _ledCardLevel - DEFAULT_OSCILLATE_LEVEL_INTERVAL;
     
-    // On change le sens si on atteint la borne
-    if (_ledCardLevel >= _ledCardLevelMax || _ledCardLevel <= _ledCardLevelMin)
+    // On change le sens si on a atteint les bornes
+    if (_ledCardLevel >= LED_CARD_MAX_VALUE || _ledCardLevel <= LED_CARD_MIN_VALUE)
       _ledCardSensUp = !_ledCardSensUp;
 
     // Actualisation du chrono
@@ -156,57 +172,51 @@ void MUST_App::CardLedOscillate(bool shortOscillation)
   }
 }
 
-
 /// --------------------------------------------------
 /// Mise à jour de l'état de la Green LED
 ///
-void MUST_App::UpdateGreenLedState(bool mesureON)
+void MUST_App::UpdateGreenLedState(int actionStatus)
 {
   // Pas de mesure en cours, on éteint la LED
-  if (!mesureON)
+  if (actionStatus == ACTION_STATUS_MESURE_OFF)
   {
-    digitalWrite(_pinLedGreen, LOW);
+    _greenLed.Off();
   }
   else
   {
-    // Traitement si plus dans l'intervalle défini
-    if (millis() > _chronoGreenLedLoop + _ledGreenLevelIntervalMillis)
-    {
-      // Validation des bornes min et max
-      if (_ledGreenLevel < _ledGreenLevelMin)
-        _ledGreenLevel = _ledGreenLevelMin;
-      if (_ledGreenLevel > _ledGreenLevelMax)
-        _ledGreenLevel = _ledGreenLevelMax;
-
-      // On positionne les LED à leur valeur respectives
-      analogWrite(_pinLedGreen, _ledGreenLevel);
-    
-      // On update les niveaux pour le prochain affichage
-      if (_ledGreenSensUp)
-        _ledGreenLevel += _ledGreenLevelInterval;
-      else
-        _ledGreenLevel -= _ledGreenLevelInterval;
-      
-      // On change le sens si on atteint la borne
-      if (_ledGreenLevel >= _ledGreenLevelMax || _ledGreenLevel <= _ledGreenLevelMin)
-        _ledGreenSensUp = !_ledGreenSensUp;
-
-    // Actualisation du chrono
-      _chronoGreenLedLoop = millis();
-    }
+    if (actionStatus == ACTION_STATUS_MESURE_ON)
+      _greenLed.Blink();
+    else
+      _greenLed.DoubleBlink(85);
   }
+}
+
+/// ------------------------------
+/// Mise à jour de la valeur de comparaison
+///
+void MUST_App::UpdateCompare()
+{
+  _compareMesure = _lastMesure;
+}
+
+/// ------------------------------
+/// Reset de la valeur de comparaison
+///
+void MUST_App::ResetCompare()
+{
+  _compareMesure = -1;
 }
 
 /// ------------------------------
 /// Actualisation de l'affichage LCD
 ///
-void MUST_App::UpdateScreen(bool mesureON)
+void MUST_App::UpdateScreen(int actionStatus)
 {
   // Pas d'actualisation de l'affichage si on est en dessous de l'intervalle de rafraichissement
   if (millis() > _chronoLCDRefresh + _lcdTauxRefreshMillis)
   {
     // Action mesure en cours : ON
-    if (mesureON)
+    if (actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
     {
       // On lance la mesure de la distance uniquement si l'ancienne mesure n'est plus valide
       if (millis() > _chronoLastMesure + _validiteMesure || _lastMesure == -1)
@@ -220,7 +230,7 @@ void MUST_App::UpdateScreen(bool mesureON)
     }
 
     // Actualisation de l'affichage
-    DisplayMesure(mesureON);
+    DisplayMesure(actionStatus);
 
     // Actualisation du chrono
     _chronoLCDRefresh = millis();
@@ -230,13 +240,13 @@ void MUST_App::UpdateScreen(bool mesureON)
 /// -----------------------------------------
 /// Actualisation de l'affichage LCD en fonction de mesureON et de _lastMesure
 ///
-void MUST_App::DisplayMesure(bool mesureON)
+void MUST_App::DisplayMesure(int actionStatus)
 {
-  // Sauvegarde de l'état d'action en cours et clear du LCD si changement
-  if (_lastSavedActionON != mesureON)
+  // Modification de l'action en cours => on clear l'écran et on update le nouveau status
+  if (actionStatus >= 1 && actionStatus <= 3 && _actionStatus != actionStatus)
   {
+    _actionStatus = actionStatus;
     _lcd.clear();
-    _lastSavedActionON = mesureON;
   }
 
   // Aucune mesure encore effectuée
@@ -246,28 +256,56 @@ void MUST_App::DisplayMesure(bool mesureON)
     _lcd.setCursor(0, 0);
     _lcd.print("Presse le bouton");
     _lcd.setCursor(0, 1);
-    _lcd.print("pour mesurer");
+    _lcd.print("pour mesurer ");
+    _lcd.wink();
   }
   else
   {
     // Mesure en cours
-    if (mesureON)
+    // Titre
+    _lcd.setCursor(0, 0);
+    switch (_actionStatus)
     {
-      // Titre
-      _lcd.setCursor(0, 0);
-      _lcd.print("Mesure en cours");
-    }
-    // Dernière mesure effectuée
-    else
-    {
-      // Titre
-      _lcd.setCursor(0, 0);
-      _lcd.print("Derniere mesure");
+      case 1:
+        if (_compareMesure != -1)
+          _lcd.print("Derniere compar.");
+        else
+          _lcd.print("Derniere mesure");
+        break;
+      case 2:
+        _lcd.print("Mesure en cours");
+        break;
+      case 3:
+        _lcd.print("Compare:");
+        _lcd.printRightJustify(FormatedComparedDistance(), 0);
+        break;
+      default:
+        break;
     }
       
     // Texte
     _lcd.setCursor(0, 1);
-    _lcd.print(FormatedDistance());
+    switch (_actionStatus)
+    {
+      case 1:
+        if (_compareMesure != -1)
+        {
+          _lcd.print(FormatedFullComparedDistance());
+          PrintCompareGlyphe();
+        }
+        else
+          _lcd.print(FormatedDistance());
+        break;
+      case 2:
+        _lcd.print(FormatedDistance());
+        break;
+      case 3:
+        _lcd.print(FormatedDistance());
+        PrintCompareGlyphe();
+        break;
+      default:
+        break;
+    }
   }  
 }
 
@@ -278,7 +316,7 @@ String MUST_App::FormatedDistance()
 {
   // Si la mesure vaut 0, c'est une erreur remontée par le module => On traite la mesure comme "hors limites"
   // Gestion des valeurs limites constructeur : 2cm -> 4m
-  if (_lastMesure < 20 || _lastMesure > 5000)
+  if (_lastMesure < HCSR04_MESURE_BORNE_MIN || _lastMesure > HCSR04_MESURE_BORNE_MAX)
   {
     return "Hors limites";
   }
@@ -293,11 +331,105 @@ String MUST_App::FormatedDistance()
   }
   formatedMesure += String(((double)centimetres / 10), 1) + " cm";
 
-  // On rajoute des espaces jusqu'a atteindre 16 caractères
-  while (formatedMesure.length() < 16)
+  // On rajoute des espaces jusqu'a atteindre 15 caractères
+  while (formatedMesure.length() < 15)
   {
     formatedMesure += " ";
   }
 
   return formatedMesure;
+}
+
+/// ------------------------------
+/// Formatte pour l'affichage la valeur de _compareMesure
+///
+String MUST_App::FormatedComparedDistance()
+{
+  // Hors limies, on renvoi une chaine vide
+  if (_compareMesure < HCSR04_MESURE_BORNE_MIN || _compareMesure > HCSR04_MESURE_BORNE_MAX)
+  {
+    return "";
+  }
+
+  // On dissocie les mètres des centimètres
+  String formatedMesure = "";
+  int metres = (_compareMesure + BOX_WIDTH_MM) / 1000;
+  long centimetres = (_compareMesure + BOX_WIDTH_MM) - (metres * 1000);
+  if (metres > 0)
+  {
+    formatedMesure = String(metres) + "m";
+  }
+  formatedMesure += String(((double)centimetres / 10), 1) + "cm";
+
+
+  return formatedMesure;
+}
+
+/// ------------------------------
+/// Formatte pour l'affichage la valeur de _compareMesure / _lastMesure
+///
+String MUST_App::FormatedFullComparedDistance()
+{
+  String formatedMesure = "";
+
+  // Si la mesure vaut 0, c'est une erreur remontée par le module => On traite la mesure comme "hors limites"
+  // Gestion des valeurs limites constructeur : 2cm -> 4m
+  if (_lastMesure < HCSR04_MESURE_BORNE_MIN || _lastMesure > HCSR04_MESURE_BORNE_MAX)
+  {
+    return "Hors limites";
+  }
+
+  // On vérifie la valeur de comapraison
+  if (_compareMesure >= HCSR04_MESURE_BORNE_MIN && _compareMesure <= HCSR04_MESURE_BORNE_MAX)
+  {
+    formatedMesure = FormatedComparedDistance();
+    formatedMesure += "/";
+  }
+  // On ajoute la dernière lecture
+  formatedMesure += FormatedDistance();
+
+  // On ajuste le format
+  formatedMesure.replace(" ", "");
+  formatedMesure.replace("cm", "");
+
+  return formatedMesure;
+}
+
+/// ------------------------------
+/// Ecrit le caractère du glyphe en fonction de _lastMesure et _compareMesure
+///
+void MUST_App::PrintCompareGlyphe()
+{
+  _lcd.setCursor(15, 1);
+  switch(GetCompareGlyphe())
+  {
+    case 0:
+      _lcd.rightArrow();
+      break;
+    case 1:
+      _lcd.upArrow();
+      break;
+    case 2:
+      _lcd.downArrow();
+      break;
+    default:
+      break;
+  }
+}
+
+/// ------------------------------
+/// Renvoi le numero de caractère du glyphe en fonction de _lastMesure et _compareMesure
+///
+int MUST_App::GetCompareGlyphe()
+{
+  // Sécurité sur la comparaison
+  if (_lastMesure == -1 || _compareMesure == -1)
+  return -1;
+
+  if (_lastMesure == _compareMesure)
+    return 0;
+  else if (_lastMesure > _compareMesure)
+    return 1;
+  else if (_lastMesure < _compareMesure)
+    return 2;
 }
