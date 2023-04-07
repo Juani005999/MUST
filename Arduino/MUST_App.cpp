@@ -9,7 +9,8 @@ MUST_App::MUST_App (int pinLedCardLeft,
                     int pinLedGreen,
                     int pinPushAction,
                     int pinEcho,
-                    int pinTrigger)
+                    int pinTrigger,
+                    int pinDht)
 {
   // Update des membres internes
   _pinLedCardLeft = pinLedCardLeft;
@@ -19,12 +20,13 @@ MUST_App::MUST_App (int pinLedCardLeft,
   _pinPushAction = pinPushAction;
   _pinEcho = pinEcho;
   _pinTrigger = pinTrigger;
+  _pinDht = pinDht;
 
   // Définition des PIN
   pinMode(_pinPushAction, INPUT_PULLUP);
 
   // Initialisation des flags de mesure
-  _actionStatus = 1;
+  _actionStatus = ACTION_STATUS_MESURE_OFF;
   _lastMesure = -1;
   _compareMesure = -1;
 }
@@ -35,14 +37,15 @@ MUST_App::MUST_App (int pinLedCardLeft,
 void MUST_App::Init()
 {
   // Initialisation des objets internes avec les paramètres de construction
-  _hcsr04.Init(_pinEcho, _pinTrigger);
-  _lcd.Init();
-  _cardLeftLed.Init(_pinLedCardLeft, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
-  _cardRightLed.Init(_pinLedCardRight, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
-  _redLed.Init(_pinLedRed, 0, LED_RED_MAX_VALUE);
-  _greenLed.Init(_pinLedGreen, LED_GREEN_MIN_VALUE, LED_GREEN_MAX_VALUE);
+  _hcsr04.Init(_pinEcho, _pinTrigger, HCSR04_MEASURE_INTERVAL);
+  _lcd.Init(LCD_ADRESS, LCD_COLS, LCD_ROWS);
+  _cardLeftLed.Init(_pinLedCardLeft, true, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
+  _cardRightLed.Init(_pinLedCardRight, true, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
+  _redLed.Init(_pinLedRed, LED_RED_MIN_VALUE, true, LED_RED_MAX_VALUE);
+  _greenLed.Init(_pinLedGreen, true, LED_GREEN_MIN_VALUE, LED_GREEN_MAX_VALUE);
+  _dht.Init(_pinDht, DHT_SENSOR_TYPE, DHT_SENSOR_INTERVAL);
 
-  // Allumage des Leds au démarrage de l'App
+  // Allumage des Leds (positionnement à maxValue) au démarrage de l'App
   _cardLeftLed.On(true);
   _cardRightLed.On(true);
   _redLed.On(true);
@@ -53,12 +56,6 @@ void MUST_App::Init()
 
   // Trace
   Serial.println("Initialisation MUST App OK");
-
-  // Initialisation Chrono
-  //_chronoLedCardLoop = millis();
-  //_chronoGreenLedLoop = millis();
-  _chronoLCDRefresh = millis();
-  _chronoLastMesure = millis();
 }
 
 /// -------------------------------------
@@ -99,7 +96,7 @@ void MUST_App::DisplayStartApp()
   
   // Affichage chargement en cours
   _lcd.setCursor(0, 1);
-  _lcd.smiley();
+  _lcd.Smiley();
   _lcd.print(" " + _texteChargement);
   delay(_delayChargement);
   _lcd.print(".");
@@ -138,13 +135,13 @@ void MUST_App::CardLedOscillate(int actionStatus)
   // ---------------------
 
   // Intervalle de référence pour l'oscillation
-  double intervalle = DEFAULT_OSCILLATE_CHRONO_INTERVAL * DEFAULT_OSCILLATE_COEF_STD;
+  double intervalle = LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL * LED_DEFAULT_OSCILLATE_COEF_STD;
 
   // Si on est en mode Mesure ON ou Compare, et qu'on est dans les limites pour la dernière mesure, on applique un coef au proprata de la distance
   //  afin de faire varier les oscillations avec la distance mesurée
   if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
       && _lastMesure > HCSR04_MESURE_BORNE_MIN && _lastMesure < HCSR04_MESURE_BORNE_MAX)
-    intervalle = DEFAULT_OSCILLATE_CHRONO_INTERVAL + ((DEFAULT_OSCILLATE_CHRONO_INTERVAL * ((double)_lastMesure / HCSR04_MESURE_BORNE_MAX)) * 50);
+    intervalle = LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL + ((LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL * ((double)_lastMesure / HCSR04_MESURE_BORNE_MAX)) * 50);
 
   // Traitement si plus dans l'intervalle défini
   if (millis() > _chronoLedCardLoop + intervalle)
@@ -160,8 +157,8 @@ void MUST_App::CardLedOscillate(int actionStatus)
     _cardRightLed.SetValue (LED_CARD_MAX_VALUE - _ledCardLevel + LED_CARD_MIN_VALUE);
 
     // On update les niveaux pour le prochain affichage
-    _ledCardLevel = _ledCardSensUp  ? _ledCardLevel + DEFAULT_OSCILLATE_LEVEL_INTERVAL
-                                    : _ledCardLevel - DEFAULT_OSCILLATE_LEVEL_INTERVAL;
+    _ledCardLevel = _ledCardSensUp  ? _ledCardLevel + LED_DEFAULT_OSCILLATE_LEVEL_INTERVAL
+                                    : _ledCardLevel - LED_DEFAULT_OSCILLATE_LEVEL_INTERVAL;
     
     // On change le sens si on a atteint les bornes
     if (_ledCardLevel >= LED_CARD_MAX_VALUE || _ledCardLevel <= LED_CARD_MIN_VALUE)
@@ -213,20 +210,18 @@ void MUST_App::ResetCompare()
 void MUST_App::UpdateScreen(int actionStatus)
 {
   // Pas d'actualisation de l'affichage si on est en dessous de l'intervalle de rafraichissement
-  if (millis() > _chronoLCDRefresh + _lcdTauxRefreshMillis)
+  if (millis() > _chronoLCDRefresh + LCD_REFRESH_SCREEN)
   {
     // Action mesure en cours : ON
     if (actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
     {
-      // On lance la mesure de la distance uniquement si l'ancienne mesure n'est plus valide
-      if (millis() > _chronoLastMesure + _validiteMesure || _lastMesure == -1)
-      {
-        // Ultra-sons Sensor
-        _lastMesure = _hcsr04.Distance();
-        // Actualisation du chrono si la mesure à fonctionnée
-        if (_lastMesure != 0)
-          _chronoLastMesure = millis();
-      }
+      // Lecture des mesures d'environnement
+      float humidite = _dht.Humidite();
+      float temperature = _dht.Temperature();
+
+      // Ultra-sons Sensor
+      // _lastMesure = _hcsr04.Distance();
+      _lastMesure = _hcsr04.Distance(temperature, humidite);
     }
 
     // Actualisation de l'affichage
@@ -257,7 +252,7 @@ void MUST_App::DisplayMesure(int actionStatus)
     _lcd.print("Presse le bouton");
     _lcd.setCursor(0, 1);
     _lcd.print("pour mesurer ");
-    _lcd.wink();
+    _lcd.Wink();
   }
   else
   {
@@ -277,7 +272,7 @@ void MUST_App::DisplayMesure(int actionStatus)
         break;
       case 3:
         _lcd.print("Compare:");
-        _lcd.printRightJustify(FormatedComparedDistance(), 0);
+        _lcd.PrintRightJustify(FormatedComparedDistance(), 0);
         break;
       default:
         break;
@@ -404,13 +399,13 @@ void MUST_App::PrintCompareGlyphe()
   switch(GetCompareGlyphe())
   {
     case 0:
-      _lcd.rightArrow();
+      _lcd.RightArrow();
       break;
     case 1:
-      _lcd.upArrow();
+      _lcd.UpArrow();
       break;
     case 2:
-      _lcd.downArrow();
+      _lcd.DownArrow();
       break;
     default:
       break;

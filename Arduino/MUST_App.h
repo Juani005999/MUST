@@ -2,40 +2,61 @@
 ///
 /// Projet          : MUST - Mon Ultra Sonic Télémètre
 /// Auteur          : Juanito del Pepito
-/// Version         : 1.1.0.1
-/// Date            : 02/04/2023
+/// Version         : 1.1.0.2
+/// Date            : 07/04/2023
 /// Description     : Télémètre à Ultra-Sons
-/// Objet           : MUST_App
-///                   Objet applicatif de l'application MUST
+/// Objet           : MUST_App : Objet applicatif de l'application MUST
+///                     - Cet objet nécessite l'ajout de la bibliothèque "JUANITO_LIB" : GitHub "JUANITO_LIB"
 ///
 /// ---------------------------------------------------------------------
 // Librairies
 #include "Arduino.h"
-#include "JUANITO_HCSR04.h"
-#include "JUANITO_LCD_I2C.h"
-#include "JUANITO_ANALOG_LED.h"
+#include <JUANITO_HCSR04.h>
+#include <JUANITO_LCD_I2C.h>
+#include <JUANITO_LED.h>
+#include <JUANITO_DHT.h>
 
 // Déclaration des constantes propres à l'application
 #define BOX_WIDTH_MM                      75                  // Largeur de la boîte pour le calcul de la distance
 #define LED_GREEN_MIN_VALUE               1                   // Valeur minimale de la LED verte
 #define LED_GREEN_MAX_VALUE               5                   // Valeur maximale de la LED verte
-#define LED_RED_MIN_VALUE                 1                   // Valeur minimale de la LED verte
-#define LED_RED_MAX_VALUE                 25                  // Valeur maximale de la LED verte
+#define LED_RED_MIN_VALUE                 1                   // Valeur minimale de la LED rouge
+#define LED_RED_MAX_VALUE                 25                  // Valeur maximale de la LED rouge
 #define LED_CARD_MIN_VALUE                1                   // Valeur minimale des LED de la protoShield
 #define LED_CARD_MAX_VALUE                20                  // Valeur maximale des LED de la protoShield
 
-// Définition des status de Mesure
-#define ACTION_STATUS_MESURE_OFF          1                   // Etat d'action en cours : Mesure OFF
-#define ACTION_STATUS_MESURE_ON           2                   // Etat d'action en cours : Mesure ON
-#define ACTION_STATUS_MESURE_COMPARE      3                   // Etat d'action en cours : Mesure ON en mode CComparaison
+// Déclarations des constantes nécessaire à l'affichage (LCD)
+#define LCD_ADRESS                        0x27                // Adresse du LCD sur le bus I2C
+#define LCD_COLS                          16                  // Nombre de colonnes du LCD
+#define LCD_ROWS                          2                   // Nombre de lignes du LCD
+#define LCD_REFRESH_SCREEN                100                 // Taux de rafraichissement de l'écran LCD
+
+// Déclarations des constantes nécessaire à la mesure de distance
+#define HCSR04_MEASURE_INTERVAL           350                 // Taux de rafraichissement des mesures de distance
+
+// Déclarations des constantes nécessaire à la mesure de l'environnement (température et humidité)
+#define DHT_SENSOR_TYPE                   DHT11               // Type de Sensor
+// #define DHT_SENSOR_TYPE                   DHT12               // Type de Sensor
+// #define DHT_SENSOR_TYPE                   DHT21               // Type de Sensor
+// #define DHT_SENSOR_TYPE                   DHT22               // Type de Sensor
+// #define DHT_SENSOR_TYPE                   AM2301              // Type de Sensor
+#define DHT_SENSOR_INTERVAL               2000                // Taux de rafraichissement des mesures de température et d'humidité
+
+// Enum définissant les status de Mesure en cours
+enum ActionStatus
+{
+  ACTION_STATUS_MESURE_OFF        = 1,												// Etat d'action en cours : Mesure OFF
+  ACTION_STATUS_MESURE_ON         = 2,												// Etat d'action en cours : Mesure ON
+  ACTION_STATUS_MESURE_COMPARE    = 3													// Etat d'action en cours : Mesure ON en mode CComparaison
+};
 
 /// ---------------------
-/// MIUST_App : Objet applicatif de l'application MUST
+/// MUST_App : Objet applicatif de l'application MUST
 ///
 class MUST_App
 {
 public:
-	MUST_App(int pinLedCardLeft, int pinLedCardRight, int pinLedRed, int pinLedGreen, int pinPushAction, int pinEcho, int pinTrigger);
+	MUST_App(int pinLedCardLeft, int pinLedCardRight, int pinLedRed, int pinLedGreen, int pinPushAction, int pinEcho, int pinTrigger, int pinDht);
   void Init();
   void CardLedOscillate(int actionStatus);
   void UpdateGreenLedState(int actionStatus);
@@ -62,15 +83,17 @@ private:
   int _pinPushAction;
   int _pinEcho;
   int _pinTrigger;
+  int _pinDht;
 
   // Initialisation des objets internes
   JUANITO_LCD_I2C _lcd = JUANITO_LCD_I2C();                   // Ecran LCD 16 x 2 I2C
   JUANITO_HCSR04 _hcsr04 = JUANITO_HCSR04();                  // Module Ultra-Son HCSR04
-  JUANITO_ANALOG_LED _cardLeftLed = JUANITO_ANALOG_LED();     // LED interne gauche de la protoShield
-  JUANITO_ANALOG_LED _cardRightLed = JUANITO_ANALOG_LED();    // LED interne droite de la protoShield
-  JUANITO_ANALOG_LED _redLed = JUANITO_ANALOG_LED();          // LED rouge : voyant de Standby
-  JUANITO_ANALOG_LED _greenLed = JUANITO_ANALOG_LED();        // LED verte : voyant d'état de l'action en cours
-  
+  JUANITO_LED _cardLeftLed = JUANITO_LED();                   // LED interne gauche de la protoShield
+  JUANITO_LED _cardRightLed = JUANITO_LED();                  // LED interne droite de la protoShield
+  JUANITO_LED _redLed = JUANITO_LED();                        // LED rouge : voyant de Standby
+  JUANITO_LED _greenLed = JUANITO_LED();                      // LED verte : voyant d'état de l'action en cours
+  JUANITO_DHT _dht = JUANITO_DHT();                           // Sensor DHT de température et d'humidité
+
   // Paramètres du démarrage de l'application   
   const int _delayTitreScroll = 25;
   const int _delayTexte = 100;
@@ -83,18 +106,13 @@ private:
   bool _ledCardSensUp = true;                                 // Sens d'oscillation ds leds
   int _ledCardLevel = 2;                                      // Niveau de départ (démarrage application, première oscillation) des leds
 
-  // Paramètres des mesures US
-  int _actionStatus = 1;                                      // Status d'action en cours : [1] Mesure OFF / [2] Mesure ON / [3] Compare
+  // Paramètres des mesures Ultra-Sons
+  ActionStatus _actionStatus = 1;                             // Status d'action en cours [ACTION_STATUS_MESURE_OFF|ACTION_STATUS_MESURE_ON|ACTION_STATUS_MESURE_COMPARE]
   long _lastMesure;                                           // Sauvegarde de la dernière mesure effectuée
   long _compareMesure;                                        // Sauvegarde de la mesure effectuée à titre de comparaison
-  const int _validiteMesure = 350;                            // Durée (ms) de validité d'une mesure afin de limiter les prises de mesures
-
-  // Paramètres d'affichage (LCD)
-  const int _lcdTauxRefreshMillis = 100;                      // Taux de rafraichissement de l'écran LCD à 100ms
 
   // Chronos internes
-  long _chronoLedCardLoop;
+  long _chronoLedCardLoop;                                    // Timestamp pour l'oscillation des LED internes
   long _chronoStatusChange;                                   // Timestamp du dernier changement de status : Mesure OFF / Mesure ON / Compare
-  long _chronoLastMesure;                                     // Timestamp de la dernière prise de mesure
-  long _chronoLCDRefresh;
+  long _chronoLCDRefresh;                                     // Timestamp pour le rafraichissement de l'écran LCD
 };

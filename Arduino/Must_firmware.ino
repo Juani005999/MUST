@@ -2,9 +2,10 @@
 ///
 /// Projet          : MUST - Mon Ultra Sonic Télémètre
 /// Auteur          : Juanito del Pepito
-/// Version         : 1.1.0.1
-/// Date            : 02/04/2023
+/// Version         : 1.1.0.2
+/// Date            : 07/04/2023
 /// Description     : Télémètre à Ultra-Sons
+///                     - Cet application nécessite l'ajout de la bibliothèque "JUANITO_LIB" : GitHub "JUANITO_LIB"
 ///
 /// ---------------------------------------------------------------------
 // Librairies
@@ -16,17 +17,21 @@
 #define PIN_LED_RED           5                             // LED et PUSH Button
 #define PIN_LED_GREEN         3
 #define PIN_PUSH_ACTION       A0
-#define TRIGGER_PIN           6                             // TRIGGER et ECHO du Module Ultra Son HC-SR04
-#define ECHO_PIN              9
+#define PIN_US_TRIGGER        6                             // TRIGGER et ECHO du Module Ultra Son HC-SR04
+#define PIN_US_ECHO           9
+#define PIN_DHT_SENSOR        7                             // Sensor de température et d'humidité
 
+// Déclaration des constantes propres à l'application
 #define DBL_CLICK_TIME        400                           // Temps (ms) considéré pour un double-clic afin d'éviter la prise en compte
 #define LONG_CLICK_TIME       750                           // Temps (ms) considéré pour un clic long pour passage en mode Compare
 
 // Déclaration des variables globales
-int actionStatus = 1;                                       // Flag de Status d'action en cours : [1] Mesure OFF / [2] Mesure ON / [3] Compare.
+ActionStatus actionStatus = ACTION_STATUS_MESURE_OFF;       // Flag de Status d'action en cours [ACTION_STATUS_MESURE_OFF|ACTION_STATUS_MESURE_ON|ACTION_STATUS_MESURE_COMPARE]
 bool actionDone = false;                                    // Flag de status HIGH / LOW du Push button
 bool buttonPressed = false;                                 // Flag de status HIGH / LOW du Push button
 long lastPushBtnTime = 0;                                   // FlagTime du dernier puch button (pour éviter les double-clic)
+
+// Déclaration des variables nécessaire aux mesures des temps de Loop
 long lastLoopTime = 0;                                      // DEBUG : Flag de lecture de l'interval mini
 long minLoopTime = 0;                                       // DEBUG : Interval mini de la fonction loop
 long maxLoopTime = 0;                                       // DEBUG : Interval mini de la fonction loop
@@ -39,8 +44,9 @@ MUST_App app = MUST_App(PIN_LED_CARD_LEFT,                  // Application MUST
                         PIN_LED_RED,
                         PIN_LED_GREEN,
                         PIN_PUSH_ACTION,
-                        ECHO_PIN,
-                        TRIGGER_PIN);
+                        PIN_US_ECHO,
+                        PIN_US_TRIGGER,
+                        PIN_DHT_SENSOR);
 
 /// ------------------------
 /// ARDUINO : Setup
