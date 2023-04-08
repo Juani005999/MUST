@@ -5,7 +5,8 @@
 /// Version         : 1.1.0.2
 /// Date            : 07/04/2023
 /// Description     : Télémètre à Ultra-Sons
-///                     - Cet application nécessite l'ajout de la bibliothèque "JUANITO_LIB" : GitHub "JUANITO_LIB"
+///                     - Cet application nécessite l'ajout de la bibliothèque "JUANITO_LIB"
+///                     - GitHub : https://github.com/Juani005999/ARDUINO-JUANITO_LIB
 ///
 /// ---------------------------------------------------------------------
 // Librairies
