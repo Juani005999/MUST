@@ -217,7 +217,7 @@ void MUST_App::UpdateScreen(int actionStatus)
     if (actionStatus == ACTION_STATUS_MEASURE_ON || actionStatus == ACTION_STATUS_MEASURE_COMPARE)
     {
       // Lecture des mesures d'environnement
-      float humidite = _dht.Humidite();
+      float humidite = _dht.Humidity();
       float temperature = _dht.Temperature();
 
       // Ultra-sons Sensor
