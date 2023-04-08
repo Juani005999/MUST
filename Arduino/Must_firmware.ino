@@ -26,16 +26,16 @@
 #define LONG_CLICK_TIME       750                           // Temps (ms) considéré pour un clic long pour passage en mode Compare
 
 // Déclaration des variables globales
-ActionStatus actionStatus = ACTION_STATUS_MESURE_OFF;       // Flag de Status d'action en cours [ACTION_STATUS_MESURE_OFF|ACTION_STATUS_MESURE_ON|ACTION_STATUS_MESURE_COMPARE]
+ActionStatus actionStatus = ACTION_STATUS_MEASURE_OFF;      // Flag de Status d'action en cours [ACTION_STATUS_MESURE_OFF|ACTION_STATUS_MESURE_ON|ACTION_STATUS_MESURE_COMPARE]
 bool actionDone = false;                                    // Flag de status HIGH / LOW du Push button
 bool buttonPressed = false;                                 // Flag de status HIGH / LOW du Push button
-long lastPushBtnTime = 0;                                   // FlagTime du dernier puch button (pour éviter les double-clic)
+long lastPushBtnTime = 0;                                   // FlagTime du dernier Push button
 
 // Déclaration des variables nécessaire aux mesures des temps de Loop
 long lastLoopTime = 0;                                      // DEBUG : Flag de lecture de l'interval mini
 long minLoopTime = 0;                                       // DEBUG : Interval mini de la fonction loop
 long maxLoopTime = 0;                                       // DEBUG : Interval mini de la fonction loop
-double avgLoopTime = 0;                                     // DEBUG : Moyenne du temps d'un Interval
+float avgLoopTime = 0;                                      // DEBUG : Moyenne du temps d'un Interval
 long nbTotalLoops = 0;                                      // DEBUG : Nombre total d'intervalles
 
 // Déclaration des objets
@@ -96,11 +96,11 @@ void SetMesureActionState()
   if (digitalRead(PIN_PUSH_ACTION) == HIGH)
   {
     // En mode MesureON ou Compare, sur clic court, on passe en mode MesureOFF
-    if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
+    if ((actionStatus == ACTION_STATUS_MEASURE_ON || actionStatus == ACTION_STATUS_MEASURE_COMPARE)
         && buttonPressed == true
         && actionDone == false)
     {
-      actionStatus = ACTION_STATUS_MESURE_OFF;
+      actionStatus = ACTION_STATUS_MEASURE_OFF;
     }
 
     // Update des Flags
@@ -122,22 +122,22 @@ void SetMesureActionState()
     }
   
     // En mode MesureOFF => On passe en MesureON
-    if (actionStatus == ACTION_STATUS_MESURE_OFF
+    if (actionStatus == ACTION_STATUS_MEASURE_OFF
         && buttonPressed == false
         && !dblClick)
     {
-      actionStatus = ACTION_STATUS_MESURE_ON;
+      actionStatus = ACTION_STATUS_MEASURE_ON;
       app.ResetCompare();
       actionDone = true;
     }
 
     // En mode MesureON ou Compare, sur clic long, on passe en mode Compare
-    else if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
+    else if ((actionStatus == ACTION_STATUS_MEASURE_ON || actionStatus == ACTION_STATUS_MEASURE_COMPARE)
         && buttonPressed == true
         && actionDone == false
         && millis() > lastPushBtnTime + LONG_CLICK_TIME)
     {
-      actionStatus = ACTION_STATUS_MESURE_COMPARE;
+      actionStatus = ACTION_STATUS_MEASURE_COMPARE;
       app.UpdateCompare();
       actionDone = true;
     }
@@ -161,7 +161,7 @@ void UpdateLoopMinMax()
   {
     minLoopTime = currentDif;
     if (minLoopTime != 0)
-      Serial.println("LoopTime : min = " + String(minLoopTime));
+      Serial.println("LoopTime : min = " + String(minLoopTime) + " ms");
   }
 
   // Temps MAX
@@ -169,14 +169,14 @@ void UpdateLoopMinMax()
   {
     maxLoopTime = currentDif;
     if (maxLoopTime != 0)
-      Serial.println("LoopTime : MAX = " + String(maxLoopTime));
+      Serial.println("LoopTime : MAX = " + String(maxLoopTime) + " ms");
   }
 
   // Actualisation moyenne
   avgLoopTime = avgLoopTime + ((currentDif - avgLoopTime) / (nbTotalLoops + 1));
   // On trace la moyenne tous les XX Loop
   if (nbTotalLoops % 100000 == 0)
-    Serial.println("LoopTime : AVG = " + String(avgLoopTime, 5) + " / LOOPS = " + String(nbTotalLoops + 1));
+    Serial.println("LoopTime : AVG = " + String(avgLoopTime, 5) + " ms / Nb. LOOPS = " + String(nbTotalLoops + 1));
   
   // Actualisation du chrono et flag
   lastLoopTime = millis();

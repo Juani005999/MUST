@@ -6,7 +6,8 @@
 /// Date            : 07/04/2023
 /// Description     : Télémètre à Ultra-Sons
 /// Objet           : MUST_App : Objet applicatif de l'application MUST
-///                     - Cet objet nécessite l'ajout de la bibliothèque "JUANITO_LIB" : GitHub "JUANITO_LIB"
+///                     - Cet objet nécessite l'ajout de la bibliothèque "JUANITO_LIB"
+///                     - GitHub : https://github.com/Juani005999/ARDUINO-JUANITO_LIB
 ///
 /// ---------------------------------------------------------------------
 // Librairies
@@ -35,19 +36,15 @@
 #define HCSR04_MEASURE_INTERVAL           350                 // Taux de rafraichissement des mesures de distance
 
 // Déclarations des constantes nécessaire à la mesure de l'environnement (température et humidité)
-#define DHT_SENSOR_TYPE                   DHT11               // Type de Sensor
-// #define DHT_SENSOR_TYPE                   DHT12               // Type de Sensor
-// #define DHT_SENSOR_TYPE                   DHT21               // Type de Sensor
-// #define DHT_SENSOR_TYPE                   DHT22               // Type de Sensor
-// #define DHT_SENSOR_TYPE                   AM2301              // Type de Sensor
+#define DHT_SENSOR_TYPE                   DHT11               // Type de Sensor [DHT11|DHT12|DHT21|DHT22|AM2301]
 #define DHT_SENSOR_INTERVAL               2000                // Taux de rafraichissement des mesures de température et d'humidité
 
 // Enum définissant les status de Mesure en cours
 enum ActionStatus
 {
-  ACTION_STATUS_MESURE_OFF        = 1,												// Etat d'action en cours : Mesure OFF
-  ACTION_STATUS_MESURE_ON         = 2,												// Etat d'action en cours : Mesure ON
-  ACTION_STATUS_MESURE_COMPARE    = 3													// Etat d'action en cours : Mesure ON en mode CComparaison
+  ACTION_STATUS_MEASURE_OFF        = 1,												// Etat d'action en cours : Mesure OFF
+  ACTION_STATUS_MEASURE_ON         = 2,												// Etat d'action en cours : Mesure ON
+  ACTION_STATUS_MEASURE_COMPARE    = 3										    // Etat d'action en cours : Mesure ON en mode CComparaison
 };
 
 /// ---------------------
@@ -107,7 +104,7 @@ private:
   int _ledCardLevel = 2;                                      // Niveau de départ (démarrage application, première oscillation) des leds
 
   // Paramètres des mesures Ultra-Sons
-  ActionStatus _actionStatus = 1;                             // Status d'action en cours [ACTION_STATUS_MESURE_OFF|ACTION_STATUS_MESURE_ON|ACTION_STATUS_MESURE_COMPARE]
+  ActionStatus _actionStatus = ACTION_STATUS_MEASURE_OFF;     // Status d'action en cours [ACTION_STATUS_MESURE_OFF|ACTION_STATUS_MESURE_ON|ACTION_STATUS_MESURE_COMPARE]
   long _lastMesure;                                           // Sauvegarde de la dernière mesure effectuée
   long _compareMesure;                                        // Sauvegarde de la mesure effectuée à titre de comparaison
 

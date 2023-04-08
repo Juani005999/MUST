@@ -26,7 +26,7 @@ MUST_App::MUST_App (int pinLedCardLeft,
   pinMode(_pinPushAction, INPUT_PULLUP);
 
   // Initialisation des flags de mesure
-  _actionStatus = ACTION_STATUS_MESURE_OFF;
+  _actionStatus = ACTION_STATUS_MEASURE_OFF;
   _lastMesure = -1;
   _compareMesure = -1;
 }
@@ -135,13 +135,14 @@ void MUST_App::CardLedOscillate(int actionStatus)
   // ---------------------
 
   // Intervalle de référence pour l'oscillation
-  double intervalle = LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL * LED_DEFAULT_OSCILLATE_COEF_STD;
+  float intervalle = ((float)(LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL / 2)) * LED_DEFAULT_OSCILLATE_COEF_STD;
 
   // Si on est en mode Mesure ON ou Compare, et qu'on est dans les limites pour la dernière mesure, on applique un coef au proprata de la distance
   //  afin de faire varier les oscillations avec la distance mesurée
-  if ((actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
-      && _lastMesure > HCSR04_MESURE_BORNE_MIN && _lastMesure < HCSR04_MESURE_BORNE_MAX)
-    intervalle = LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL + ((LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL * ((double)_lastMesure / HCSR04_MESURE_BORNE_MAX)) * 50);
+  if ((actionStatus == ACTION_STATUS_MEASURE_ON || actionStatus == ACTION_STATUS_MEASURE_COMPARE)
+      && _lastMesure > HCSR04_MEASURE_BORNE_MIN && _lastMesure < HCSR04_MEASURE_BORNE_MAX)
+    intervalle = ((float)(LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL / 2))
+                 + ((LED_DEFAULT_OSCILLATE_CHRONO_INTERVAL * ((float)_lastMesure / HCSR04_MEASURE_BORNE_MAX)) * 50);
 
   // Traitement si plus dans l'intervalle défini
   if (millis() > _chronoLedCardLoop + intervalle)
@@ -175,13 +176,13 @@ void MUST_App::CardLedOscillate(int actionStatus)
 void MUST_App::UpdateGreenLedState(int actionStatus)
 {
   // Pas de mesure en cours, on éteint la LED
-  if (actionStatus == ACTION_STATUS_MESURE_OFF)
+  if (actionStatus == ACTION_STATUS_MEASURE_OFF)
   {
     _greenLed.Off();
   }
   else
   {
-    if (actionStatus == ACTION_STATUS_MESURE_ON)
+    if (actionStatus == ACTION_STATUS_MEASURE_ON)
       _greenLed.Blink();
     else
       _greenLed.DoubleBlink(85);
@@ -213,7 +214,7 @@ void MUST_App::UpdateScreen(int actionStatus)
   if (millis() > _chronoLCDRefresh + LCD_REFRESH_SCREEN)
   {
     // Action mesure en cours : ON
-    if (actionStatus == ACTION_STATUS_MESURE_ON || actionStatus == ACTION_STATUS_MESURE_COMPARE)
+    if (actionStatus == ACTION_STATUS_MEASURE_ON || actionStatus == ACTION_STATUS_MEASURE_COMPARE)
     {
       // Lecture des mesures d'environnement
       float humidite = _dht.Humidite();
@@ -261,16 +262,16 @@ void MUST_App::DisplayMesure(int actionStatus)
     _lcd.setCursor(0, 0);
     switch (_actionStatus)
     {
-      case 1:
+      case ACTION_STATUS_MEASURE_OFF:
         if (_compareMesure != -1)
           _lcd.print("Derniere compar.");
         else
           _lcd.print("Derniere mesure");
         break;
-      case 2:
+      case ACTION_STATUS_MEASURE_ON:
         _lcd.print("Mesure en cours");
         break;
-      case 3:
+      case ACTION_STATUS_MEASURE_COMPARE:
         _lcd.print("Compare:");
         _lcd.PrintRightJustify(FormatedComparedDistance(), 0);
         break;
@@ -282,7 +283,7 @@ void MUST_App::DisplayMesure(int actionStatus)
     _lcd.setCursor(0, 1);
     switch (_actionStatus)
     {
-      case 1:
+      case ACTION_STATUS_MEASURE_OFF:
         if (_compareMesure != -1)
         {
           _lcd.print(FormatedFullComparedDistance());
@@ -291,10 +292,10 @@ void MUST_App::DisplayMesure(int actionStatus)
         else
           _lcd.print(FormatedDistance());
         break;
-      case 2:
+      case ACTION_STATUS_MEASURE_ON:
         _lcd.print(FormatedDistance());
         break;
-      case 3:
+      case ACTION_STATUS_MEASURE_COMPARE:
         _lcd.print(FormatedDistance());
         PrintCompareGlyphe();
         break;
@@ -311,7 +312,7 @@ String MUST_App::FormatedDistance()
 {
   // Si la mesure vaut 0, c'est une erreur remontée par le module => On traite la mesure comme "hors limites"
   // Gestion des valeurs limites constructeur : 2cm -> 4m
-  if (_lastMesure < HCSR04_MESURE_BORNE_MIN || _lastMesure > HCSR04_MESURE_BORNE_MAX)
+  if (_lastMesure < HCSR04_MEASURE_BORNE_MIN || _lastMesure > HCSR04_MEASURE_BORNE_MAX)
   {
     return "Hors limites";
   }
@@ -341,7 +342,7 @@ String MUST_App::FormatedDistance()
 String MUST_App::FormatedComparedDistance()
 {
   // Hors limies, on renvoi une chaine vide
-  if (_compareMesure < HCSR04_MESURE_BORNE_MIN || _compareMesure > HCSR04_MESURE_BORNE_MAX)
+  if (_compareMesure < HCSR04_MEASURE_BORNE_MIN || _compareMesure > HCSR04_MEASURE_BORNE_MAX)
   {
     return "";
   }
@@ -369,13 +370,13 @@ String MUST_App::FormatedFullComparedDistance()
 
   // Si la mesure vaut 0, c'est une erreur remontée par le module => On traite la mesure comme "hors limites"
   // Gestion des valeurs limites constructeur : 2cm -> 4m
-  if (_lastMesure < HCSR04_MESURE_BORNE_MIN || _lastMesure > HCSR04_MESURE_BORNE_MAX)
+  if (_lastMesure < HCSR04_MEASURE_BORNE_MIN || _lastMesure > HCSR04_MEASURE_BORNE_MAX)
   {
     return "Hors limites";
   }
 
   // On vérifie la valeur de comapraison
-  if (_compareMesure >= HCSR04_MESURE_BORNE_MIN && _compareMesure <= HCSR04_MESURE_BORNE_MAX)
+  if (_compareMesure >= HCSR04_MEASURE_BORNE_MIN && _compareMesure <= HCSR04_MEASURE_BORNE_MAX)
   {
     formatedMesure = FormatedComparedDistance();
     formatedMesure += "/";
