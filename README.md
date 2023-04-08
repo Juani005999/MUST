@@ -1,11 +1,12 @@
 # MUST
 Mon Ultra Sonic Télémètre
 
-Update V 1.1.0.4 :
+-> Update V 1.1.0.4 :
 
   - Ajout d'un capteur de température et d'humidité (DHT11) afin de pouvoir appliquer une correction sur la prise de mesure et ainsi augmenter la précision.
 
-Update Firmware V 1.1.0.1 :
+
+-> Update Firmware V 1.1.0.1 :
 
 https://www.youtube.com/watch?v=bIksc4qJLK4
 
@@ -22,7 +23,7 @@ https://www.youtube.com/watch?v=bIksc4qJLK4
 ![IMG_20230402_160246](https://user-images.githubusercontent.com/109244995/229360681-ba1497f3-7dc2-4de2-b05a-de3c3745f0b6.jpg)
 
 
-V 0.1.0.1 :
+-> V 0.1.0.1 :
 
 https://www.youtube.com/watch?v=euZ6hRltmG8
 
