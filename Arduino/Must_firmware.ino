@@ -2,8 +2,8 @@
 ///
 /// Projet          : MUST - Mon Ultra Sonic Télémètre
 /// Auteur          : Juanito del Pepito
-/// Version         : 1.1.0.2
-/// Date            : 07/04/2023
+/// Version         : 1.1.0.5
+/// Date            : 09/04/2023
 /// Description     : Télémètre à Ultra-Sons
 ///                     - Cet application nécessite l'ajout de la bibliothèque "JUANITO_LIB"
 ///                     - GitHub : https://github.com/Juani005999/ARDUINO-JUANITO_LIB
@@ -177,7 +177,7 @@ void UpdateLoopMinMax()
   avgLoopTime = avgLoopTime + ((currentDif - avgLoopTime) / (nbTotalLoops + 1));
   // On trace la moyenne tous les XX Loop
   if (nbTotalLoops % 100000 == 0)
-    Serial.println("LoopTime : AVG = " + String(avgLoopTime, 5) + " ms / Nb. LOOPS = " + String(nbTotalLoops + 1));
+    Serial.println("LoopTime : AVG = " + String(avgLoopTime, 5) + " ms / Nb. LOOPS = " + String(nbTotalLoops));
   
   // Actualisation du chrono et flag
   lastLoopTime = millis();

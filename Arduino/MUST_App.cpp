@@ -38,7 +38,7 @@ void MUST_App::Init()
 {
   // Initialisation des objets internes avec les paramètres de construction
   _hcsr04.Init(_pinEcho, _pinTrigger, HCSR04_MEASURE_INTERVAL);
-  _lcd.Init(LCD_ADRESS, LCD_COLS, LCD_ROWS);
+  _lcd.Init(LCD_ADDRESS, LCD_COLS, LCD_ROWS);
   _cardLeftLed.Init(_pinLedCardLeft, true, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
   _cardRightLed.Init(_pinLedCardRight, true, LED_CARD_MIN_VALUE, LED_CARD_MAX_VALUE);
   _redLed.Init(_pinLedRed, LED_RED_MIN_VALUE, true, LED_RED_MAX_VALUE);
@@ -97,7 +97,8 @@ void MUST_App::DisplayStartApp()
   // Affichage chargement en cours
   _lcd.setCursor(0, 1);
   _lcd.Smiley();
-  _lcd.print(" " + _texteChargement);
+  _lcd.print(" ");
+  _lcd.print(_texteChargement);
   delay(_delayChargement);
   _lcd.print(".");
   delay(_delayChargement);
@@ -260,6 +261,7 @@ void MUST_App::DisplayMesure(int actionStatus)
     // Mesure en cours
     // Titre
     _lcd.setCursor(0, 0);
+    char* firstLine = malloc(LCD_COLS);
     switch (_actionStatus)
     {
       case ACTION_STATUS_MEASURE_OFF:
@@ -273,42 +275,52 @@ void MUST_App::DisplayMesure(int actionStatus)
         break;
       case ACTION_STATUS_MEASURE_COMPARE:
         _lcd.print("Compare:");
-        _lcd.PrintRightJustify(FormatedComparedDistance(), 0);
+        FormatedComparedDistance(&firstLine[0]);
+        _lcd.PrintRightJustify(firstLine, 0);
         break;
       default:
         break;
     }
+    free(firstLine);
       
     // Texte
     _lcd.setCursor(0, 1);
+    char* secondLine = malloc(LCD_COLS);
     switch (_actionStatus)
     {
       case ACTION_STATUS_MEASURE_OFF:
         if (_compareMesure != -1)
         {
-          _lcd.print(FormatedFullComparedDistance());
+          FormatedFullComparedDistance(&secondLine[0]);
+          _lcd.print(secondLine);
           PrintCompareGlyphe();
         }
         else
-          _lcd.print(FormatedDistance());
+        {
+          FormatedDistance(&secondLine[0]);
+          _lcd.print(secondLine);
+        }
         break;
       case ACTION_STATUS_MEASURE_ON:
-        _lcd.print(FormatedDistance());
+        FormatedDistance(&secondLine[0]);
+        _lcd.print(secondLine);
         break;
       case ACTION_STATUS_MEASURE_COMPARE:
-        _lcd.print(FormatedDistance());
+        FormatedDistance(&secondLine[0]);
+        _lcd.print(secondLine);
         PrintCompareGlyphe();
         break;
       default:
         break;
     }
+    free(secondLine);
   }  
 }
 
 /// ------------------------------
 /// Formatte pour l'affichage la valeur de _lastMesure
 ///
-String MUST_App::FormatedDistance()
+MUST_App::FormatedDistance(char* returnString)
 {
   // Si la mesure vaut 0, c'est une erreur remontée par le module => On traite la mesure comme "hors limites"
   // Gestion des valeurs limites constructeur : 2cm -> 4m
@@ -333,13 +345,14 @@ String MUST_App::FormatedDistance()
     formatedMesure += " ";
   }
 
-  return formatedMesure;
+  //returnString = malloc(formatedMesure.length());
+  formatedMesure.toCharArray(returnString, formatedMesure.length() + 1);
 }
 
 /// ------------------------------
 /// Formatte pour l'affichage la valeur de _compareMesure
 ///
-String MUST_App::FormatedComparedDistance()
+MUST_App::FormatedComparedDistance(char* returnString)
 {
   // Hors limies, on renvoi une chaine vide
   if (_compareMesure < HCSR04_MEASURE_BORNE_MIN || _compareMesure > HCSR04_MEASURE_BORNE_MAX)
@@ -357,17 +370,14 @@ String MUST_App::FormatedComparedDistance()
   }
   formatedMesure += String(((double)centimetres / 10), 1) + "cm";
 
-
-  return formatedMesure;
+  formatedMesure.toCharArray(returnString, formatedMesure.length() + 1);
 }
 
 /// ------------------------------
 /// Formatte pour l'affichage la valeur de _compareMesure / _lastMesure
 ///
-String MUST_App::FormatedFullComparedDistance()
+MUST_App::FormatedFullComparedDistance(char* returnString)
 {
-  String formatedMesure = "";
-
   // Si la mesure vaut 0, c'est une erreur remontée par le module => On traite la mesure comme "hors limites"
   // Gestion des valeurs limites constructeur : 2cm -> 4m
   if (_lastMesure < HCSR04_MEASURE_BORNE_MIN || _lastMesure > HCSR04_MEASURE_BORNE_MAX)
@@ -378,17 +388,21 @@ String MUST_App::FormatedFullComparedDistance()
   // On vérifie la valeur de comapraison
   if (_compareMesure >= HCSR04_MEASURE_BORNE_MIN && _compareMesure <= HCSR04_MEASURE_BORNE_MAX)
   {
-    formatedMesure = FormatedComparedDistance();
-    formatedMesure += "/";
+    FormatedComparedDistance(returnString);
+    strcat(returnString, "/");
   }
   // On ajoute la dernière lecture
-  formatedMesure += FormatedDistance();
+  char* formatedDistance = malloc(LCD_COLS);
+  FormatedDistance(formatedDistance);
+  String formatedMesure = returnString;
+  formatedMesure.concat(formatedDistance);
+  free(formatedDistance);
 
   // On ajuste le format
   formatedMesure.replace(" ", "");
   formatedMesure.replace("cm", "");
 
-  return formatedMesure;
+  formatedMesure.toCharArray(returnString, formatedMesure.length() + 1);
 }
 
 /// ------------------------------

@@ -2,8 +2,8 @@
 ///
 /// Projet          : MUST - Mon Ultra Sonic Télémètre
 /// Auteur          : Juanito del Pepito
-/// Version         : 1.1.0.2
-/// Date            : 07/04/2023
+/// Version         : 1.1.0.5
+/// Date            : 09/04/2023
 /// Description     : Télémètre à Ultra-Sons
 /// Objet           : MUST_App : Objet applicatif de l'application MUST
 ///                     - Cet objet nécessite l'ajout de la bibliothèque "JUANITO_LIB"
@@ -27,7 +27,7 @@
 #define LED_CARD_MAX_VALUE                20                  // Valeur maximale des LED de la protoShield
 
 // Déclarations des constantes nécessaire à l'affichage (LCD)
-#define LCD_ADRESS                        0x27                // Adresse du LCD sur le bus I2C
+#define LCD_ADDRESS                       0x27                // Adresse du LCD sur le bus I2C
 #define LCD_COLS                          16                  // Nombre de colonnes du LCD
 #define LCD_ROWS                          2                   // Nombre de lignes du LCD
 #define LCD_REFRESH_SCREEN                100                 // Taux de rafraichissement de l'écran LCD
@@ -64,9 +64,9 @@ public:
 private:
   void DisplayStartApp();
   void DisplayMesure(int actionStatus);
-  String FormatedDistance();
-  String FormatedComparedDistance();
-  String FormatedFullComparedDistance();
+  FormatedDistance(char* returnString);
+  FormatedComparedDistance(char* returnString);
+  FormatedFullComparedDistance(char* returnString);
   void PrintCompareGlyphe();
   int GetCompareGlyphe();
   void SimpleBlinkGreenLed();
@@ -96,8 +96,8 @@ private:
   const int _delayTexte = 100;
   const int _delayChargement = 500;
   const int _delayFinal = 1000;
-  const String _titreApp = "MUST            ";
-  const String _texteChargement = "chargement ";
+  const char _titreApp[16] = "MUST            ";
+  const char _texteChargement[16] = "chargement ";
 
   // // Paramètres de l'oscillation des Led de la carte Protoshield
   bool _ledCardSensUp = true;                                 // Sens d'oscillation ds leds
